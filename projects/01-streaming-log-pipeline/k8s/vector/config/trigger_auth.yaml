@@ -1,0 +1,10 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: keda-auth-read-prd-pub-sub
+  namespace: vector
+spec:
+  secretTargetRef:
+  - parameter: GoogleApplicationCredentials
+    name: prd-gke-log-sub
+    key: prd-pub-sub.json 

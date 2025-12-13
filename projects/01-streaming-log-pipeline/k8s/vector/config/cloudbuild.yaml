@@ -1,0 +1,50 @@
+steps:
+# 1. secret manager에서 키파일 내려받기
+- name: 'gcr.io/cloud-builders/gcloud'
+  entrypoint: 'bash'
+  args: [ '-c', "gcloud secrets versions access latest --secret=$_SECRET_NAME_1 --format='get(payload.data)' | tr '_-' '/+' | base64 -d > projects/01-streaming-log-pipeline/k8s/vector/docker/$_SECRET_FILE_1"]
+
+# 2. Docker 이미지 빌드
+- name: 'gcr.io/cloud-builders/docker'
+  id: Build
+  args: ['build', '-t', '$_IMAGE_PATH:$SHORT_SHA', '-f', 'projects/01-streaming-log-pipeline/k8s/vector/docker/Dockerfile', 'projects/01-streaming-log-pipeline/k8s/vector/docker']
+
+# 3. Google Artifact Registry에 Docker 이미지 푸시
+- name: 'gcr.io/cloud-builders/docker'
+  id: Push
+  args: ['push', '$_IMAGE_PATH:$SHORT_SHA']
+
+# CD Trigger를 위한 kustomize repo checkout
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: Checkout GitHub repository
+  entrypoint: /bin/sh
+  secretEnv: ['GITHUB_TOKEN']
+  args:
+  - '-c'
+  - |
+    git config --global user.name "CloudBuild"
+    git config --global user.email "cloudbuild@example.com"
+    # GitHub 저장소 클론
+    git clone https://$$GITHUB_TOKEN@github.com/$_GITHUB_REPO.git
+    cd {repo_noame}
+    git checkout $_GIT_BRANCH
+    cd $_KUSTOMIZE_PATH
+    ls -al
+    # kustomize 이미지 업데이트
+    kustomize edit set image $_IMAGE_PATH=$_IMAGE_PATH:$SHORT_SHA
+    # 변경사항 커밋 및 푸시
+    git add .
+    git commit -m "image tag 변경" 
+    git push origin $_GIT_BRANCH
+
+images:
+  - '$_IMAGE_PATH:$SHORT_SHA'
+
+options:
+  defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
+  machineType: "E2_HIGHCPU_8"
+
+availableSecrets:
+  secretManager:
+    - versionName: secret_manager_secert_path
+      env: 'GITHUB_TOKEN'

@@ -1,0 +1,38 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+   name: scaledobject
+   namespace: vector
+
+spec:
+  scaleTargetRef:
+    kind: Deployment
+    name: service-prd-vector 
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  pollingInterval: 30
+  cooldownPeriod:  60
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 30
+        scaleDown:
+          stabilizationWindowSeconds: 60
+          policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+
+  triggers:
+  - type: prometheus
+    authenticationRef:
+      name: service-prd-vector-keda-auth-read-prd-pub-sub
+    metadata:
+      serverAddress: https://monitoring.googleapis.com/v1/projects/{project}/location/global/prometheus
+      query: 'sum(avg_over_time({"__name__"="pubsub.googleapis.com/subscription/num_undelivered_messages","monitored_resource"="pubsub_subscription","subscription_id"="{sub_id}","project_id"="{project_name}","metadata_system_topic_id"="{topic_name}"}[2m]))'
+      threshold: "8000"
