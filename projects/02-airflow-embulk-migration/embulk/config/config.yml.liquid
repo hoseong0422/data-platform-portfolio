@@ -1,0 +1,30 @@
+in:
+  type: mysql
+  driver_path: /opt/jdbc/mysql-connector-java-5.1.49.jar
+  host: {{ env.DB_HOST }}
+  port: {{ env.DB_PORT }}
+  user: {{ env.DB_USER }}
+  password: "{{ env.DB_PASSWORD }}"
+  database: {{ env.DB_DATABASE }}
+  socket_timeout: 3600
+  connect_timeout: 6000
+  options: {autoReconnect: true}
+  fetch_rows: 10000
+  use_legacy_datetime_code: true
+  query: |
+    {{ env.DB_QUERY }}
+
+out:
+  type: bigquery
+  mode: {{ env.BQ_MODE }}
+  auto_create_table: true
+  auth_method: service_account
+  json_keyfile: {{ env.BQ_KEY_PATH }} 
+  project: {{ env.BQ_PROJECT | default: "default-project" }}
+  dataset: {{ env.BQ_DATASET }}
+  table: {{ env.BQ_TABLE }}
+  source_format: NEWLINE_DELIMITED_JSON
+  max_bad_records: 100
+  open_timeout_sec: 7200
+  send_timeout_sec: 7200
+  read_timeout_sec: 7200 

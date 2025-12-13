@@ -1,0 +1,18 @@
+in:
+  type: mysql
+  driver_path: /opt/jdbc/mysql-connector-java-5.1.49.jar
+  host: {{ env.DB_HOST }}
+  port: {{ env.DB_PORT }}
+  user: {{ env.DB_USER }}
+  password: "{{ env.DB_PASSWORD }}"
+  database: {{ env.DB_DATABASE }}
+  socket_timeout: 3600
+  connect_timeout: 6000
+  options: {autoReconnect: true}
+  fetch_rows: 10000
+  use_legacy_datetime_code: true
+  query: |
+    {{ env.DB_QUERY }}
+
+out:
+  type: stdout
