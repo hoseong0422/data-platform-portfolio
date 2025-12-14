@@ -28,7 +28,7 @@ data-platform-portfolio/
 
 ## 📌 주요 프로젝트 목록
 
-### 1️⃣ [Streaming Log Pipeline](/projects/01-streaming-log-pipeline/README.md)
+### 1️⃣ [Streaming Log Pipeline](/projects/01-streaming-log-pipeline)
 
 **GKE → Pub/Sub → Vector → Kafka → Elasticsearch** 기반 스트리밍 로그 파이프라인
 
@@ -36,14 +36,14 @@ data-platform-portfolio/
 * Consumer 서버 수 52대 → 5대 축소
 * Inter-Region 네트워크 비용 약 80% 이상 절감
 
-### 2️⃣ [Airflow + Embulk ETL Migration](/projects/02-airflow-embulk-migration/README.md)
+### 2️⃣ [Airflow + Embulk ETL Migration](/projects/02-airflow-embulk-migration)
 
 Jenkins 기반 배치 작업을 **Airflow(KubernetesPodOperator)**로 마이그레이션
 
 * 배치 파이프라인 표준화
 * 운영 안정성 및 확장성 개선
 
-### 3️⃣ [GitOps 기반 배포 자동화](/projects/03-gitops-helm-argocd/README.md)
+### 3️⃣ [GitOps 기반 배포 자동화](/projects/03-gitops-helm-argocd)
 
 **Helm + ArgoCD(Single / Multi-source)** 구조 설계 및 검증
 
@@ -51,7 +51,7 @@ Jenkins 기반 배치 작업을 **Airflow(KubernetesPodOperator)**로 마이그�
 * 불필요한 이미지 재빌드 제거 (빌드 시간 약 30초 절감)
 * 팀 단위 테스트·검증 리소스 절감
 
-### 4️⃣ [Redash 오픈소스 커스터마이징](/projects/04-security-redash-export-control/README.md)
+### 4️⃣ [Redash 오픈소스 커스터마이징](/projects/04-security-redash-export-control)
 
 Redash Backend·Frontend 코드 수정
 
