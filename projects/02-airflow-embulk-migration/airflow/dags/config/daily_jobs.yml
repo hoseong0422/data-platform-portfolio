@@ -1,0 +1,18 @@
+embulk_tasks:
+  - source_table: table_name
+    mode: replace or append, partition
+    full_scan: True or False
+    single_table: True or False
+    query: >
+      SELECT 
+        id,
+        title,
+        created_at,
+        updated_at
+      FROM
+        table
+      WHERE
+        created_at >= '{{ data_interval_start.in_timezone("Asia/Seoul") | ds }} 00:00:00'
+        AND created_at <  '{{ data_interval_end.in_timezone("Asia/Seoul")   | ds }} 00:00:00'
+    target_table: test_table_{{ data_interval_start.in_timezone("Asia/Seoul") | ds_nodash }}
+      
