@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kafka-connect.fullname" . }}
+  labels:
+    {{- include "kafka-connect.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "kafka-connect.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "kafka-connect.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}      
+      serviceAccountName: {{ include "kafka-connect.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}-server
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: kafka-connect
+              containerPort: {{ .Values.servicePort }}
+              protocol: TCP
+          env:
+            - name: CONNECT_REST_ADVERTISED_HOST_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: CONNECT_BOOTSTRAP_SERVERS
+              value: {{ .Values.env.kafka.bootstrapServers }}
+            - name: BOOTSTRAP_SERVERS
+              value: {{ .Values.env.kafka.bootstrapServers }}              
+            - name: CONNECT_GROUP_ID
+              value: {{ .Chart.Name }}-group              
+            - name: CONNECT_CONFIG_STORAGE_TOPIC
+              value: {{ .Chart.Name }}-config
+            - name: CONNECT_OFFSET_STORAGE_TOPIC
+              value: {{ .Chart.Name }}-offset
+            - name: CONNECT_STATUS_STORAGE_TOPIC
+              value: {{ .Chart.Name }}-status
+            - name: CONNECT_KEY_CONVERTER
+              value: {{ .Values.env.keyConverter }}
+            - name: CONNECT_VALUE_CONVERTER
+              value: {{ .Values.env.valueConverter }}
+            - name: CONNECT_INTERNAL_KEY_CONVERTER
+              value: {{ .Values.env.internalKeyConverter }}
+            - name: CONNECT_INTERNAL_VALUE_CONVERTER
+              value: {{ .Values.env.internalValueConverter }}
+            - name: CONNECT_PLUGIN_PATH
+              value: {{ .Values.env.connectPluginPath }}
+            - name: KAFKA_HEAP_OPTS
+              value: {{ .Values.env.heapOptions }}
+          {{- if .Values.livenessProbe }}
+          livenessProbe:
+{{ toYaml .Values.livenessProbe | trim | indent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe }}
+          readinessProbe:
+{{ toYaml .Values.readinessProbe | trim | indent 12 }}
+          {{- end }}          
+          {{- if .Values.startupProbe }}          
+          startupProbe:
+{{ toYaml .Values.startupProbe | trim | indent 12 }}
+          {{- end }}                    
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

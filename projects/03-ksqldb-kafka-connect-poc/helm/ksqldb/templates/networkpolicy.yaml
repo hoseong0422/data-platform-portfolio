@@ -1,0 +1,20 @@
+{{- if .Values.networkpolicy.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.networkpolicy.metadata.name }}  
+  namespace: {{ .Values.networkpolicy.metadata.namespace }}    
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name:  {{ include "ksqldb.fullname" . }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Values.networkpolicy.spec.allowTarget.namespace }} 
+      ports:
+        - protocol: {{ .Values.networkpolicy.spec.allowTarget.protocal }}
+          port: {{ .Values.networkpolicy.spec.allowTarget.port }} 
+{{- end }}

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ksqldb
+description: A Helm chart for Kubernetes to deploy ksqlDB, a streaming SQL engine for Apache Kafka.
+type: application
+version: 0.1.0
+appVersion: "8.0.0" # The version of the ksqlDB application
