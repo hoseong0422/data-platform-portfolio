@@ -194,7 +194,6 @@ helm rollback ksqldb
 | --------------- | -------------- | ------------------- |
 | Connector 등록 실패 | REST 접근 차단     | NetworkPolicy 수정    |
 | Alert 중복 발생     | Window overlap | Tumbling window로 변경 |
-| 과도한 scale-out   | CPU 기준 한계      | threshold 조정        |
 
 ---
 
