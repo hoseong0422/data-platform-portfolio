@@ -30,26 +30,27 @@ data-platform-portfolio/
 
 ### 1️⃣ [Streaming Log Pipeline](/projects/01-streaming-log-pipeline)
 
-**GKE → Pub/Sub → Vector → Kafka → Elasticsearch** 기반 스트리밍 로그 파이프라인
+- **GKE → Pub/Sub → Vector → Kafka → Elasticsearch** 기반 쿠버네티스 환경 로그 파이프라인
+- **VM → Logstash → Kafka → Elasticsearch** 기반 vm 환경 로그 파이프라인
 
 * 로그 유실 99% 이상 감소 (일간 1,000건 → 3건 이내)
-* Consumer 서버 수 52대 → 5대 축소
-* Inter-Region 네트워크 비용 약 80% 이상 절감
+* Consumer 서버 수 약 50대 → 5대 축소
+* 불필요한 Inter-Region 네트워크 비용 절감
 
-### 2️⃣ [Airflow + Embulk ETL Migration](/projects/02-airflow-embulk-migration)
+### 2️⃣ [BigQuery 관리](projects/02-bigquery-management)
 
-Jenkins 기반 배치 작업을 **Airflow(KubernetesPodOperator)**로 마이그레이션
+BigQuery 운영을 위한 **Custom IAM Role 설계, MySQL↔BigQuery 타입 이슈 대응, 운영 관리 SQL 정리**
 
-* 배치 파이프라인 표준화
-* 운영 안정성 및 확장성 개선
+* Scheduled Query 편집을 위해 Admin 권한을 대체하는 Custom Role 설계
+* MySQL → BigQuery 적재 시 타입 불일치 이슈 문서화로 재발 방지
+* 미사용 테이블·샤딩 테이블 점검 SQL로 운영 관리 효율 개선
 
-### 3️⃣ [GitOps 기반 배포 자동화](/projects/03-gitops-helm-argocd)
+### 3️⃣ [ksqlDB, Kafka Connect PoC](/projects/03-ksqldb-kafka-connect-poc)
 
-**Helm + ArgoCD(Single / Multi-source)** 구조 설계 및 검증
+**ksqlDB와 Kafka Connect**를 활용하여 실시간 얼럿 시스템 PoC
 
-* Vector ConfigMap 기반 배포 구조 개선
-* 불필요한 이미지 재빌드 제거 (빌드 시간 약 30초 절감)
-* 팀 단위 테스트·검증 리소스 절감
+* 공식 Helm Chart 노후화로 Helm Chart 직접 작성하여 배포
+* 기존 최소 1분 주기 Alert -> 초단위 얼럿 구성 레퍼런스 확보
 
 ### 4️⃣ [Redash 오픈소스 커스터마이징](/projects/04-security-redash-export-control)
 
@@ -58,6 +59,13 @@ Redash Backend·Frontend 코드 수정
 * 개인정보 테이블 Export 차단 기능 구현
 * 보안·컴플라이언스 요구사항을 코드 레벨에서 해결
 
+### 5️⃣ [Airflow + Embulk ETL Migration](/projects/05-airflow-embulk-migration)
+
+Jenkins 기반 배치 작업을 **Airflow(KubernetesPodOperator)**로 마이그레이션
+
+* 배치 파이프라인 표준화
+* 운영 안정성 및 확장성 개선
+
 ---
 
 ## 📊 정량적 성과 요약
@@ -65,7 +73,7 @@ Redash Backend·Frontend 코드 수정
 | 구분                | Before       | After            | 성과               |
 | ----------------- | ------------ | ---------------- | ---------------- |
 | 로그 유실             | 일 1,000건 이상  | 일 3건 이내          | 99% 이상 감소        |
-| Logstash Consumer | 52대          | 5대               | 컴퓨팅 리소스 약 60% 절감 |
+| Logstash Consumer | 약 50대          | 5대               | 컴퓨팅 리소스 약 60% 절감 |
 | 네트워크 비용           | Cross-Region | Same Region      | 약 80% 이상 절감      |
 | 자산 수집 공수          | 16시간         | 2시간              | 약 85% 절감         |
 | BigQuery 비용       | 온디맨드 단가 인상   | Storage Model 전환 | 약 25% 비용 인상 방어   |
