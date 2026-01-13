@@ -28,7 +28,7 @@ data-platform-portfolio/
 
 ## 📌 주요 프로젝트 목록
 
-### 1️⃣ [Streaming Log Pipeline](/projects/01-streaming-log-pipeline)
+### 1️⃣ [Streaming Log Pipeline](projects/01-streaming-log-pipeline)
 
 - **GKE → Pub/Sub → Vector → Kafka → Elasticsearch** 기반 쿠버네티스 환경 로그 파이프라인
 - **VM → Logstash → Kafka → Elasticsearch** 기반 vm 환경 로그 파이프라인
@@ -45,21 +45,21 @@ BigQuery 운영을 위한 **Custom IAM Role 설계, MySQL↔BigQuery 타입 이�
 * MySQL → BigQuery 적재 시 타입 불일치 이슈 문서화로 재발 방지
 * 미사용 테이블·샤딩 테이블 점검 SQL로 운영 관리 효율 개선
 
-### 3️⃣ [ksqlDB, Kafka Connect PoC](/projects/03-ksqldb-kafka-connect-poc)
+### 3️⃣ [ksqlDB, Kafka Connect PoC](projects/03-ksqldb-kafka-connect-poc)
 
 **ksqlDB와 Kafka Connect**를 활용하여 실시간 얼럿 시스템 PoC
 
 * 공식 Helm Chart 노후화로 Helm Chart 직접 작성하여 배포
 * 기존 최소 1분 주기 Alert -> 초단위 얼럿 구성 레퍼런스 확보
 
-### 4️⃣ [Redash 오픈소스 커스터마이징](/projects/04-security-redash-export-control)
+### 4️⃣ [Redash 오픈소스 커스터마이징](projects/04-security-redash-export-control)
 
 Redash Backend·Frontend 코드 수정
 
 * 개인정보 테이블 Export 차단 기능 구현
 * 보안·컴플라이언스 요구사항을 코드 레벨에서 해결
 
-### 5️⃣ [Airflow + Embulk ETL Migration](/projects/05-airflow-embulk-migration)
+### 5️⃣ [Airflow + Embulk ETL Migration](projects/05-airflow-embulk-migration)
 
 Jenkins 기반 배치 작업을 **Airflow(KubernetesPodOperator)**로 마이그레이션
 
