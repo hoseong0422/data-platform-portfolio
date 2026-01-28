@@ -44,15 +44,8 @@ Elasticsearch 클러스터의 데이터 노드 증설 없이, **Index Lifecycle 
         "min_age": "3d",
         "actions": {
           "forcemerge": {
-            "max_num_segments": 1
-          },
-          "shrink": {
-            "number_of_shards": 1
-          },
-          "allocate": {
-            "require": {
-              "box_type": "warm"
-            }
+            "max_num_segments": 1,
+            "index_codec" : "best_compression"
           }
         }
       },
@@ -78,7 +71,7 @@ Elasticsearch 클러스터의 데이터 노드 증설 없이, **Index Lifecycle 
 | **인덱스 관리** | Hot - Delete (단순) | Hot - Warm - Delete | 데이터 생명주기에 따른 리소스 차등 배분 |
 | **Heap 메모리** | 노드별 사용률 임계점 육박 | 가용 Heap 공간 확보 및 GC 안정화 | Segment 수 감소로 인한 오버헤드 제거 |
 | **디스크 사용량** | 지속적 증가 및 얼럿 빈발 | 약 20~30% 이상 공간 절감 | 데이터 압축 및 병합을 통한 저장 효율 증대 |
-| **인프라 비용** | 노드 증설 필요 (비용 증가) | **노드 증설 없이 해결** | 운영 비용(OPEX) 절감 |
+| **인프라 비용** | 노드 증설 필요 (비용 증가) | **노드 증설 없이 해결** | 운영 비용 절감 |
 
 ### 정성적 성과
 
