@@ -30,12 +30,12 @@ data-platform-portfolio/
 
 ### 1️⃣ [Streaming Log Pipeline](projects/01-streaming-log-pipeline)
 
-- **GKE → Pub/Sub → Vector → Kafka → Elasticsearch** 기반 쿠버네티스 환경 로그 파이프라인
+- **GKE → Vector → Kafka → Elasticsearch** 기반 쿠버네티스 환경 로그 파이프라인 (기존 Pub/Sub 제거 및 DaemonSet 구조 전환으로 약 60% 비용 절감)
 - **VM → Logstash → Kafka → Elasticsearch** 기반 vm 환경 로그 파이프라인
 
-* 로그 유실 99% 이상 감소 (일간 1,000건 → 3건 이내)
-* Consumer 서버 수 약 50대 → 5대 축소
-* 불필요한 Inter-Region 네트워크 비용 절감
+* 로그 유실 99% 이상 감소 (일간 1,000건 → 3건 이내) 및 스파이크성 로그 유실 원천 차단
+* 불필요한 GCP Managed 서비스(Pub/Sub, Cloud Logging Sink) 제거로 로깅 비용 약 60% 절감
+* Consumer 서버 수 약 50대 → 5대 축소 및 Inter-Region 네트워크 비용 절감
 
 ### 2️⃣ [BigQuery 관리](projects/02-bigquery-management)
 
