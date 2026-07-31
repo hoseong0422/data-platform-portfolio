@@ -74,6 +74,14 @@ Claude Team Plan 도입 및 Custom MCP 구축, LiteLLM Proxy를 활용한 사내
 * API Key 단위 실시간 사용량 모니터링 및 미사용 Key 관리를 위한 LiteLLM Proxy 도입
 * Google Apps Script에서 IAP를 경유해 LLM API에 안전하게 접근하는 환경 구축
 
+### 7️⃣ [LiteLLM Cloud SQL 마이그레이션과 DB Connection 안정화](projects/07-litellm-cloudsql-migration)
+
+Kubernetes 내부 PostgreSQL에 저장하던 LiteLLM 운영 데이터를 **Cloud SQL PostgreSQL 17**로 이전하고, 후속 Connection Full 문제를 PgBouncer로 안정화
+
+* Prisma migration과 데이터 이관을 컷오버 하루 전에 수행해 실제 전환 구간에서 DB 복원 작업 제거
+* 기존 Virtual Key와 실제 LLM 호출 정상 동작 확인 후 In-cluster PostgreSQL 폐기
+* PgBouncer 도입으로 최대 100개인 Cloud SQL 연결을 40개 미만으로 유지
+
 ---
 
 ## 📊 정량적 성과 요약
@@ -85,6 +93,7 @@ Claude Team Plan 도입 및 Custom MCP 구축, LiteLLM Proxy를 활용한 사내
 | 네트워크 비용           | Cross-Region | Same Region      | 약 80% 이상 절감      |
 | 자산 수집 공수          | 16시간         | 2시간              | 약 85% 절감         |
 | BigQuery 비용       | 온디맨드 단가 인상   | Storage Model 전환 | 약 25% 비용 인상 방어   |
+| Cloud SQL 연결      | 최대 100개 도달    | 40개 미만           | PgBouncer로 안정화    |
 
 ---
 
@@ -92,7 +101,7 @@ Claude Team Plan 도입 및 Custom MCP 구축, LiteLLM Proxy를 활용한 사내
 
 * **Cloud**: GCP(GKE, Pub/Sub, BigQuery, GCS, Cloud Build), AWS
 * **Streaming / Log**: Kafka, Vector, Fluent-Bit, Logstash, Elasticsearch, Kibana
-* **Data / ETL**: Airflow, Embulk, BigQuery
+* **Data / ETL**: Airflow, Embulk, BigQuery, PostgreSQL, Cloud SQL, PgBouncer
 * **Kubernetes / DevOps**: Helm, ArgoCD, KEDA, GitOps
 * **AI / AX**: Claude Team Plan, MCP (Model Context Protocol), LiteLLM Proxy
 * **Language**: Python, SQL, Shell, Google Apps Script

@@ -25,10 +25,6 @@
    - 사내 사용자가 Claude Team Plan UI에서 내부 데이터(BigQuery, Google Sheets)를 실시간으로 안전하게 조회하며 연동할 수 있도록 Custom MCP 서버를 구축했습니다.
    - Google OAuth 인증 방식을 적용해 보안 신뢰성을 강화하고, BigQuery 데이터셋 단위로 접근 권한을 관리하여 필요 이상의 내부 데이터 유출을 원천 방지했습니다.
 
-3. **LiteLLM Proxy 도입을 통한 서비스 API 관리 및 모니터링 구축**
-   - 사내 서비스 및 업무 자동화 도구(Google Apps Script 등)가 사용하는 LLM API 호출을 단일 게이트웨이(LiteLLM)로 단일화했습니다.
-   - 이를 통해 API Key별 사용량 및 비용을 실시간 모니터링하고, GCP IAP(Identity-Aware Proxy)를 통해 사내 인프라 내에 배포된 LiteLLM Proxy에 안전하게 접근하는 환경을 조성했습니다. (※ Claude Team Plan은 최적의 속도와 사용성을 위해 모델 API를 직접 호출하되, 데이터 연동 시에만 Custom MCP를 활용하는 구조로 이원화했습니다.)
-
 ## Architecture
 
 ### 1) 사내 사용자의 Claude UI 직접 활용 흐름
@@ -46,6 +42,30 @@
 [업무 자동화 (Apps Script) / 사내 서비스] ──(IAP)──> [LiteLLM Proxy] ──> [Gemini / LLM APIs]
 ```
 
+## LiteLLM Proxy
+
+### 1. 도입 배경
+
+사내 서비스와 업무 자동화 도구가 Gemini API Key를 직접 사용하면 GCP 프로젝트 단위로만 사용량과 비용을 확인할 수 있었습니다. 개별 Key의 사용량을 파악할 수 없어 비용을 예측하거나 미사용 Key를 식별·회수하기 어려웠습니다.
+
+### 2. 선택 이유
+
+LiteLLM Proxy를 단일 게이트웨이로 두고 호출을 Key 단위로 관리하는 구조를 선택했습니다. 이를 통해 API Key별 사용량과 비용을 확인하고, 일·월별 사용 한도(Budget Limit)를 적용할 수 있도록 했습니다.
+
+### 3. 운영 구조
+
+사내 서비스와 Google Apps Script 등 업무 자동화 도구의 LLM API 호출을 LiteLLM Proxy로 단일화했습니다. 호출은 GCP IAP(Identity-Aware Proxy)를 거치도록 구성해, Google Workspace 내 서비스가 별도 VPN 노출 없이 사내 인프라의 Proxy에 접근하게 했습니다.
+
+LiteLLM은 Key별 실시간 사용 통계를 수집하고, Rate Limit 초과나 비용 급증을 감지해 알림을 전송합니다. 일정 기간 사용하지 않은 API Key는 점검해 만료 및 권한 회수 대상으로 관리합니다.
+
+Claude Team Plan은 모델 API를 직접 호출하고, 내부 데이터 연동이 필요할 때만 Custom MCP를 사용하도록 분리했습니다.
+
+### 4. 운영 DB 마이그레이션
+
+LiteLLM 운영 DB를 Kubernetes 내부 PostgreSQL에서 Cloud SQL PostgreSQL 17로 이전했습니다. 이후 발생한 Connection Full 문제에는 PgBouncer를 도입해 Cloud SQL의 최대 100개 연결을 40개 미만으로 유지하고 있습니다.
+
+자세한 설계와 검증 과정은 [LiteLLM Cloud SQL 마이그레이션과 DB Connection 안정화](../07-litellm-cloudsql-migration)에서 확인할 수 있습니다.
+
 ## Implementation
 
 ### 1. AI 활용 환경 및 보안 정책 수립
@@ -57,14 +77,8 @@
 - **BigQuery MCP**: 특정 권한이 부여된 데이터셋 내에서만 Query Execution 및 Schema Search가 동작하도록 제한 모듈 구현.
 - **Google Sheets MCP**: 공유 드라이브(Shared Drive) 내 사전에 지정된 특정 Spreadsheet ID 범위에서만 셀 데이터를 Read할 수 있도록 수집 리더 모듈 구현.
 
-### 3. LiteLLM Proxy 기반 관리 체계 구축 (내부 서비스/스크립트 연동용)
-- **API Key 단위 비용 및 할당량 관리**: 개별 API Key에 대한 일/월별 사용 한도(Budget Limit)를 설정하고 실시간 사용 통계를 수집 및 관리.
-- **Google Apps Script 연동용 IAP 터널**: IAP(Identity-Aware Proxy)를 경유하도록 설정하여 별도의 VPN 노출 없이 Google Workspace 내 서비스들이 안전하게 API를 호출하도록 인증 체계 완비.
-
 ## Operations
 
-- **이상 징후 실시간 감지**: API Key별 비정상적인 호출 횟수(Rate Limit 초과)나 비용 급증(Cost Spike) 발생 시 Slack 채널 등으로 즉시 알림 전송.
-- **미사용 API Key 자동 점검**: 일정 기간(예: 30일) 사용되지 않은 API Key를 모니터링하여 자동 만료 및 권한 회수 처리.
 - **OAuth 권한 정기 감사**: Custom MCP에 등록된 Google Cloud 서비스 어카운트의 접근 이력 및 공유 드라이브 소유권을 정기 점검.
 
 ## Results
@@ -78,5 +92,6 @@
 ## Tech Stack
 
 - **AI/AX Suite**: Claude Team Plan, MCP (Model Context Protocol), LiteLLM Proxy
-- **Cloud / Security**: GCP BigQuery, Google Drive, Google Sheets, IAP (Identity-Aware Proxy), Google OAuth
+- **Cloud / Security**: GCP BigQuery, Cloud SQL, Google Drive, Google Sheets, IAP (Identity-Aware Proxy), Google OAuth
+- **Database**: PostgreSQL, PgBouncer
 - **Language / Script**: Python, Google Apps Script
