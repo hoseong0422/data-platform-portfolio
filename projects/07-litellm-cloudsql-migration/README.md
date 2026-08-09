@@ -1,10 +1,56 @@
-# LiteLLM Cloud SQL 마이그레이션과 DB Connection 안정화
+# LiteLLM on GKE · Cloud SQL 마이그레이션과 DB Connection 안정화
 
 ## Overview
 
 Kubernetes 클러스터 안에서 StatefulSet으로 운영하던 LiteLLM PostgreSQL을 Cloud SQL for PostgreSQL로 이전했습니다. PostgreSQL 18.4에서 17로 버전이 낮아지는 조건에서도 데이터를 안전하게 옮길 수 있는지 로컬 환경에서 먼저 검증했고, 실제 운영에서는 스키마 생성과 데이터 이관을 컷오버 하루 전에 끝내 전환 시점의 작업을 LiteLLM 파드 교체로 줄였습니다.
 
 전환 직후 기존 Virtual Key와 실제 LLM 호출을 확인했고, 운영 안정화 후 In-cluster PostgreSQL을 폐기했습니다. 이후 DB Connection Full 문제가 발생해 PgBouncer를 도입했습니다. 현재는 최대 100개인 Cloud SQL 연결을 40개 미만으로 유지하고 있습니다.
+
+## Platform Context
+
+LiteLLM은 단순히 Gemini API를 전달하는 Proxy가 아니라, 사내 서비스의 LLM 호출을 팀·기능 단위로 운영하기 위한 중앙 게이트웨이로 구성했습니다. 기존에는 Gemini API Key가 프로젝트 단위로 관리되어 어느 팀의 어떤 기능이 비용을 만들었는지 분리해 보기 어려웠습니다.
+
+MCP가 Claude의 사내 데이터 접근 경계를 다루는 별도 과제라면, LiteLLM은 사내 서비스와 업무 자동화 도구의 LLM API 호출·Key·비용을 통제하는 과제입니다.
+
+### Before → After
+
+```text
+[서비스 / 업무 자동화]
+          │
+          ▼
+ [Gemini API Key 직접 호출]       [서비스 / 업무 자동화]
+  프로젝트 단위 비용만 확인                 │
+                                          ▼
+                              [Cloud Armor 허용 IP / IAP 대체 경로]
+                                          │
+                                          ▼
+                                  [LiteLLM on GKE]
+                              팀·기능 Key / 비용 / 사용량
+                                          │
+                                          ▼
+                                  [Gemini API]
+```
+
+### Key Policies
+
+- 팀·기능별 Virtual Key로 호출 주체와 비용 책임을 나눴습니다.
+- 개발환경 Key 수명은 30일, 운영환경 Key 수명은 1년으로 구분했습니다.
+- Key별 예산·접근 가능 모델·Rate Limit을 관리할 수 있도록 했습니다.
+- 기본 경로는 Cloud Armor에서 허용 IP 대역을 통제했습니다.
+- Google Apps Script처럼 outbound IP를 특정하기 어려운 호출 주체는 서비스·도메인을 분리하고 IAP로 접근을 통제했습니다.
+
+### Operating Improvements
+
+GKE 배포 후 운영에서 드러난 병목을 다음 구조로 확장했습니다.
+
+| 운영 문제 | 대응 |
+| --- | --- |
+| 사용량 변화에 따른 처리량 | KEDA 기반 scale 정책 |
+| 클러스터 내부 DB 운영 부담 | Cloud SQL PostgreSQL 이전 |
+| DB Connection Full | PgBouncer |
+| 외부 API 429 응답 | 멀티 리전 fallback 경로 |
+
+이 README의 다음 절부터는 그중 Cloud SQL 이전과 PgBouncer 안정화 과정을 자세히 기록합니다.
 
 ## Architecture
 
@@ -143,9 +189,10 @@ DB 연결 한도 검증은 부족했습니다. 데이터 정합성과 기능만 
 
 ## Tech Stack
 
-- **Application**: LiteLLM Proxy, Prisma
+- **Application**: LiteLLM Proxy, Gemini API, Prisma
 - **Database**: PostgreSQL 18.4, Cloud SQL for PostgreSQL 17, PgBouncer
-- **Infrastructure**: GKE, Kubernetes, Helm
+- **Infrastructure**: GKE, Kubernetes, Helm, KEDA, Cloud Armor, IAP
+- **Resilience**: Multi-region fallback
 - **Migration / Validation**: Kubernetes Job, pg_dump, pg_restore, SQL
 
 > 실제 업무 경험을 바탕으로 작성했으며, 내부 클러스터·계정·Secret 등 민감한 식별 정보는 제거하거나 일반화했습니다.
