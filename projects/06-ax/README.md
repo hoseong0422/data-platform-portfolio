@@ -1,97 +1,198 @@
-# AI Transformation (AX)
+# AI Transformation (AX) · Claude Team Plan & Custom MCP
 
 ## Overview
 
-사내 구성원(개발자 및 비개발자)의 업무 생산성을 극대화하기 위해 **Claude Team Plan을 도입하고 Custom MCP(Model Context Protocol) 서버를 구축**하여 안전한 데이터 연동 환경을 마련했습니다. 이와 동시에, 사내 서비스 및 업무 자동화 도구에서 사용되는 LLM API 호출을 효율적으로 통제하고 비용을 모니터링하기 위해 **LiteLLM Proxy 기반의 API Gateway 체계**를 설계·구축했습니다.
+사내 AX를 지원하며 Claude Team Plan을 사내 공식 AI 도구로 채택했습니다. 구성원이 실제로 사용하는 문서·분석 데이터를 하나의 업무 채널에서 연결하되, 원천 시스템의 권한과 보안 경계는 그대로 유지하기 위해 Custom MCP를 구축했습니다.
+
+MCP와 LiteLLM은 모두 AX를 지원하지만 서로 다른 과제입니다. 이 문서는 Claude Team Plan과 Custom MCP를 다루며, 사내 서비스의 LLM API 호출·Key·비용을 통제한 LiteLLM은 [별도 프로젝트](../07-litellm-cloudsql-migration)로 분리했습니다.
 
 ## Problem
 
-1. **AI 에이전트의 데이터 접근 제어 및 보안 가이드라인 부재**
-   - 사내에서 AI 에이전트(LLM) 활용이 증가함에 따라 데이터베이스(DB) 및 공유 자산에 무제한 접근할 시 발생할 수 있는 보안 및 컴플라이언스 위험이 존재했습니다.
-   - AI 에이전트가 접근할 수 있는 범위를 명확히 제한하고 데이터셋 단위로 권한을 엄격히 통제할 방안이 필요했습니다.
+질문은 하나인데 데이터는 여러 시스템에 흩어져 있었습니다. 특히 비개발자가 BigQuery를 조회하거나 사내 문서를 편집하려면 시스템별 접근 방법과 권한 정책을 따로 알아야 했습니다.
 
-2. **Gemini API 사용량 및 비용 집계의 투명성 부족 (사내 서비스 호출 시)**
-   - 사내 서비스 및 업무 자동화 도구가 Gemini API Key를 직접 연동해 호출할 경우, GCP 프로젝트 단위로만 사용량과 비용이 집계되어 개별 Key 단위의 사용량 모니터링이 불가능했습니다.
-   - 이로 인해 비용 예측 및 미사용 Key 식별/회수가 어려웠습니다.
+Claude를 공통 업무 채널로 도입하더라도 에이전트가 원천 DB를 직접 읽거나 공유 문서를 모두 편집할 수 있어서는 안 됐습니다. 따라서 소스마다 허용 동작과 접근 범위를 다르게 정한 MCP가 필요했습니다.
 
 ## Key Decisions
 
-1. **AI 활용 보안 환경 정책 수립 및 Claude Team Plan 도입**
-   - 개발자와 비개발자 모두의 생산성 향상을 위해 Claude Team Plan을 도입했습니다.
-   - 안전한 AI 활용을 위해 **에이전트의 실 서비스 데이터베이스(DB) 직접 접근을 원천 금지**하는 정책을 설계했습니다.
-   - 데이터 노출 최소화를 위해 분석 전용의 격리된 프로젝트 내 BigQuery만 제한적으로 조회하도록 설계하고, 승인된 구글 공유 드라이브의 Google Sheets에만 접근 가능하도록 규정을 제한했습니다.
+### 1. Claude Team Plan을 공식 AI 도구로 채택
 
-2. **Custom MCP (Google Sheets, BigQuery) 서버 구축**
-   - 사내 사용자가 Claude Team Plan UI에서 내부 데이터(BigQuery, Google Sheets)를 실시간으로 안전하게 조회하며 연동할 수 있도록 Custom MCP 서버를 구축했습니다.
-   - Google OAuth 인증 방식을 적용해 보안 신뢰성을 강화하고, BigQuery 데이터셋 단위로 접근 권한을 관리하여 필요 이상의 내부 데이터 유출을 원천 방지했습니다.
+개발자와 비개발자가 동일한 업무 채널에서 Claude를 사용하도록 표준화했습니다. 데이터 연동은 MCP가 담당하고, 원천 시스템의 사용자 권한과 조직 정책은 각 MCP의 경계에서 다시 확인하도록 했습니다.
+
+### 2. MCP마다 다른 권한 경계 적용
+
+세 MCP를 같은 방식으로 열지 않았습니다.
+
+| MCP | 해결한 업무 | 접근 경계 |
+| --- | --- | --- |
+| Google Sheets | 공유 문서 검색·조회·편집 | 특정 Shared Drive allowlist, 사용자 OAuth, 문서 ID 검증 |
+| BigQuery | 승인된 분석 데이터 조회 | MCP 전용 프로젝트, Origin 프로젝트의 허용된 View, SELECT-only |
+| Discovery | 자산·변환 흐름·Lineage 탐색 | 고정 조회, bounded graph, 원천·카탈로그 read-only |
 
 ## Architecture
 
-### 1) 사내 사용자의 Claude UI 직접 활용 흐름
+```text
+[개발자 / 비개발자]
+          │
+          ▼
+ [Claude Team Plan]
+          │
+          ▼
+ [Custom MCP layer]
+    ┌─────┼──────────────┐
+    ▼     ▼              ▼
+[Sheets] [BigQuery] [Discovery]
+ Shared   MCP 전용     catalog_* /
+ Drive    project      Lineage / UI
+ allowlist authorized
+          views
 ```
-[사용자 / 개발자] ──> [Claude Team Plan (Web/App UI)]
-                             │
-                             ▼ (Custom MCP Server / Google OAuth 인증)
-                  ┌──────────┴──────────┐
-                  ▼                     ▼
-       [BigQuery (격리 프로젝트)]   [Google Sheets (지정 공유 드라이브)]
+
+MCP는 원천 데이터를 모두 복제하는 계층이 아닙니다. 사용자가 허용된 범위에서 필요한 동작을 호출하고, 결과를 Claude의 대화 흐름으로 되돌리는 연결 계층입니다.
+
+## Custom MCP
+
+### 1. Google Sheets MCP
+
+Claude에 공식 Google Sheets MCP가 없어 직접 구축했습니다. 사내에서 많이 사용하는 문서 도구를 AX 채널에 연결하되, 특정 Shared Drive에 저장된 스프레드시트만 대상으로 삼았습니다.
+
+- 특정 Shared Drive allowlist에 포함된 문서만 검색·노출
+- 사용자 Google OAuth 권한과 문서 ID를 함께 확인
+- 읽기뿐 아니라 허용된 스프레드시트의 range 편집·행 추가·서식 변경 지원
+- GKE에 배포해 운영
+- 허용 범위를 벗어난 문서 요청과 접근 검증 실패는 거절하고 감사 로그에 남김
+
+### 2. BigQuery MCP
+
+비개발자의 BigQuery 조회가 원천 프로젝트로 직접 향하지 않도록 MCP 전용 신규 프로젝트를 만들었습니다. 사내 비개발자 조회는 해당 프로젝트에서만 진행하도록 정책을 세웠습니다.
+
+- Origin 프로젝트의 테이블을 그대로 공개하지 않고 허용된 View만 MCP 전용 프로젝트에 연결
+- 사용자는 기존과 같은 분석 테이블을 조회하지만, MCP는 분리된 프로젝트에서 실행
+- 프로젝트 allowlist·dataset IAM·SELECT-only 도구 계약으로 임의 변경을 차단
+- 쿼리 실행 전 dry-run과 고정 조회 범위를 적용
+
+### 3. Discovery MCP
+
+BigQuery를 Data Lake·Warehouse·Mart로 활용하면서, 원천 DB·Log가 어떤 적재·변환 단계를 거쳐 소비되는지 확인할 수 있는 도구를 구축했습니다.
+
+- Airflow·Embulk 설정, BigQuery Information Schema·Audit, BI 리소스를 카탈로그로 수집
+- `catalog_*` 테이블에 자산·컬럼·변경 이력·테이블/컬럼 Lineage·감사 근거를 분리 저장
+- 원천 소스와 BigQuery 예약 쿼리의 변환 흐름을 `asset_id` 축으로 연결
+- 검색·자산 상세·최근 변경·비용·Staleness·PII 후보·소비자 탐색 제공
+- MCP Apps(Prefab UI)로 필요한 데이터와 상호작용 화면을 함께 반환
+
+## Discovery Data Contract
+
+### Asset identity
+
+자산 ID는 소스 family와 경로를 함께 담아 BigQuery·MySQL·Looker·파이프라인 자산을 같은 축으로 연결합니다. 날짜 샤드는 `orders_YYYYMMDD` 같은 물리 테이블을 `orders_*` 논리 자산으로 정규화해 그래프 노드가 불필요하게 늘어나지 않도록 했습니다.
+
+### Catalog tables
+
+| 영역 | 책임 |
+| --- | --- |
+| `catalog_assets` | 자산의 현재 상태·owner·tag·metadata·last_seen |
+| `catalog_columns` | 현재 컬럼 스냅샷 |
+| `catalog_columns_history` | 추가·삭제·타입·nullable 변경 이력 |
+| `catalog_lineage` | 테이블 단위 source → destination 관계 |
+| `catalog_lineage_columns` | SQL/Embulk 기반 컬럼 매핑과 confidence |
+| `catalog_audit_jobs` | Query·Scheduled Query·DDL 감사 근거 |
+
+현재 상태는 빠르게 읽을 수 있도록 MERGE하고, 변경 이력은 append-only로 보존합니다. 테이블 Lineage와 컬럼 Lineage는 확실성이 다르므로 별도 저장하고, 컬럼 파싱 실패가 테이블 관계의 실패로 번지지 않게 했습니다.
+
+## Lineage Engine
+
+무제한 그래프를 반환하지 않고 root 중심 bounded BFS를 적용했습니다.
+
+- upstream과 downstream frontier를 분리해 방향을 유지
+- 기본 최근 변경 범위 90일, 탐색 깊이 1~5
+- 최대 200개 노드·1,000개 엣지로 응답 크기 제한
+- 상한에 도달하면 조용히 자르지 않고 `truncated=true`, `depth_reached`를 반환
+- root와 관계없는 cross-branch가 섞이지 않도록 같은 방향의 frontier만 확장
+
+테이블 Lineage와 컬럼 Lineage는 별도의 확실성을 가집니다.
+
+- 테이블 관계: Audit Log의 `referenced_tables`와 destination으로 구성
+- 컬럼 관계: SQL parser 결과와 Embulk mapping을 별도 저장
+- 기본 confidence 0.70 미만의 매핑은 정확한 관계처럼 표시하지 않음
+- 컬럼 파싱 실패가 테이블 관계 실패로 전파되지 않도록 분리
+
+## MCP Apps
+
+별도 프론트엔드와 API를 유지하는 대신 JSON helper tool과 App tool을 같은 MCP registry에 등록했습니다.
+
+```text
+소스 선택
+  → discovery_list_containers
+  → discovery_list_tables
+  → discovery_asset_detail
+  → Lineage / cost / stale / PII 결과 표시
+  → 선택한 asset_id를 SendMessage로 Claude 대화에 전달
 ```
 
-### 2) 사내 서비스 및 자동화 도구의 LLM API 호출 흐름
-```
-[업무 자동화 (Apps Script) / 사내 서비스] ──(IAP)──> [LiteLLM Proxy] ──> [Gemini / LLM APIs]
-```
+### User-facing surfaces
 
-## LiteLLM Proxy
+- Overview: 소스·컨테이너·테이블 드릴다운
+- Search Assets: Search Index 기반 자산 검색
+- Asset Detail: metadata·컬럼·변경 이력·최근 edge
+- Lineage Graph: graph·edge 표·컬럼 매핑
+- Recent Changes / Cost / Staleness
+- Who Uses / PII Candidates
 
-### 1. 도입 배경
+Prefab UI는 MCP tool의 실행 결과입니다. 별도 프론트엔드와 API를 유지하는 대신 `PrefabApp`, `CallTool`, `SetState`, `SendMessage`로 서버 조회·화면 상태·대화 컨텍스트를 연결했습니다.
 
-사내 서비스와 업무 자동화 도구가 Gemini API Key를 직접 사용하면 GCP 프로젝트 단위로만 사용량과 비용을 확인할 수 있었습니다. 개별 Key의 사용량을 파악할 수 없어 비용을 예측하거나 미사용 Key를 식별·회수하기 어려웠습니다.
+그래프는 외부 graph runtime에 의존하지 않는 self-contained SVG·CSS·JS로 반환합니다. hover·pin·zoom·키보드 포커스를 지원하고, node에는 `tabindex`, `role=button`, `aria-pressed`를 적용했습니다.
 
-### 2. 선택 이유
+## Runtime & Trust
 
-LiteLLM Proxy를 단일 게이트웨이로 두고 호출을 Key 단위로 관리하는 구조를 선택했습니다. 이를 통해 API Key별 사용량과 비용을 확인하고, 일·월별 사용 한도(Budget Limit)를 적용할 수 있도록 했습니다.
+### Local
 
-### 3. 운영 구조
+로컬 Claude Desktop은 stdio와 Application Default Credentials(ADC)로 연결했습니다. 개인 개발·디버깅과 실제 BigQuery smoke test에 적합한 단순한 경로입니다.
 
-사내 서비스와 Google Apps Script 등 업무 자동화 도구의 LLM API 호출을 LiteLLM Proxy로 단일화했습니다. 호출은 GCP IAP(Identity-Aware Proxy)를 거치도록 구성해, Google Workspace 내 서비스가 별도 VPN 노출 없이 사내 인프라의 Proxy에 접근하게 했습니다.
+### Remote
 
-LiteLLM은 Key별 실시간 사용 통계를 수집하고, Rate Limit 초과나 비용 급증을 감지해 알림을 전송합니다. 일정 기간 사용하지 않은 API Key는 점검해 만료 및 권한 회수 대상으로 관리합니다.
+다중 사용자 환경은 GKE의 FastAPI·FastMCP HTTP runtime으로 분리했습니다.
 
-Claude Team Plan은 모델 API를 직접 호출하고, 내부 데이터 연동이 필요할 때만 Custom MCP를 사용하도록 분리했습니다.
+- OAuth metadata·Dynamic Client Registration·Authorization Code·PKCE(S256)
+- access token 기본 1시간, refresh token 기본 7일 TTL
+- replica 확장을 위해 Redis TokenStore와 key prefix 분리
+- 사용자 email·IP·Google credentials를 요청 context에 전달
+- 사용자가 임의 SQL을 넣지 않고 `catalog_*`에 대한 고정 SELECT만 실행
+- 호출 사용자·시각·source·IP·target·tool·성공/오류 결과를 감사 로그로 기록
 
-### 4. 운영 DB 마이그레이션
+## Validation
 
-LiteLLM 운영 DB를 Kubernetes 내부 PostgreSQL에서 Cloud SQL PostgreSQL 17로 이전했습니다. 이후 발생한 Connection Full 문제에는 PgBouncer를 도입해 Cloud SQL의 최대 100개 연결을 40개 미만으로 유지하고 있습니다.
+“동작한다”를 한 경로로 판단하지 않고, 다음 검증 경계를 분리했습니다.
 
-자세한 설계와 검증 과정은 [LiteLLM Cloud SQL 마이그레이션과 DB Connection 안정화](../07-litellm-cloudsql-migration)에서 확인할 수 있습니다.
+| 경로 | 확인한 것 |
+| --- | --- |
+| stdio registry | FastMCP tool registry 로드와 실제 BigQuery 조회 |
+| HTTP smoke | `/health`, 무토큰 401, initialize, `tools/list`, 인증 middleware |
+| MCP Apps E2E | 검색·상세·Lineage·비용·PII·Prefab/JSON 직렬화 |
+| Security regression | PKCE, redirect URI, token TTL, OAuth client 검증 |
+| Remote render | 원격 HTTP MCP Apps에서 Claude가 Prefab UI를 실제 렌더하는 경로 |
 
-## Implementation
-
-### 1. AI 활용 환경 및 보안 정책 수립
-- AI 에이전트에 대한 최소 권한 원칙(Principle of Least Privilege) 적용 가이드 수립.
-- 보안이 확보된 임시 또는 격리된 데이터 분석 환경(Sandboxed BigQuery Dataset)만 LLM의 Context에 연동할 수 있도록 제한.
-
-### 2. Custom MCP Server 개발 및 배포 (Claude Team Plan 연동용)
-- **Google OAuth 인증 연동**: OAuth 2.0 프로토콜을 사용해 사용자와 에이전트의 인증 정보를 명확히 식별 및 관리.
-- **BigQuery MCP**: 특정 권한이 부여된 데이터셋 내에서만 Query Execution 및 Schema Search가 동작하도록 제한 모듈 구현.
-- **Google Sheets MCP**: 공유 드라이브(Shared Drive) 내 사전에 지정된 특정 Spreadsheet ID 범위에서만 셀 데이터를 Read할 수 있도록 수집 리더 모듈 구현.
-
-## Operations
-
-- **OAuth 권한 정기 감사**: Custom MCP에 등록된 Google Cloud 서비스 어카운트의 접근 이력 및 공유 드라이브 소유권을 정기 점검.
+검증은 “화면이 그럴듯하다”보다 같은 `asset_id`가 검색 결과·상세·edge·감사 로그까지 이어지는지에 초점을 맞췄습니다. 그래프 overflow, 컬럼 파싱 실패, OAuth handshake 실패도 숨기지 않고 관찰 가능한 상태로 반환합니다.
 
 ## Results
 
-**Before → After**
+- 문서 편집·승인 데이터 조회·자산 탐색을 하나의 Claude 업무 채널로 연결
+- 소스별 allowlist·OAuth·프로젝트/IAM·SELECT-only·read-only 경계를 분리
+- 같은 `asset_id`를 검색 결과·상세·Lineage·그래프·감사 로그까지 연결
+- 그래프 범위, 컬럼 매핑 실패, OAuth handshake 실패를 숨기지 않고 관찰 가능한 상태로 표현
+- bounded graph로 응답 크기와 화면 범위를 예측 가능하게 구성
 
-- **보안 가이드라인**: 정책 부재로 인한 데이터 유출 우려 → 에이전트 DB 직접 접근 금지 정책 및 Custom MCP 접근 제어로 안전한 개발 환경 마련.
-- **비용 모니터링 (사내 서비스)**: GCP 프로젝트 단위의 누적 과금만 확인 가능 → API Key별 실시간 사용량 추적 및 비정상 비용 발생 시 차단 가능.
-- **사내 연동 편의성**: 보안 리스크로 인한 클라우드 외부 AI API 호출 불가 → IAP 터널을 이용한 Google Apps Script 및 내부 서비스들과의 안전한 사내 LLM 연결 지원.
+## Trade-offs
+
+- Discovery MCP는 catalog를 읽는 계층이며 원천 데이터와 카탈로그를 직접 변경하지 않습니다.
+- 테이블 Lineage와 컬럼 Lineage를 같은 정확도로 표현하지 않고 confidence와 evidence를 분리했습니다.
+- 초기 설계에 있던 상태 변경 UI는 구현 완료로 표현하지 않고, 현재는 read-only PII 후보 조회 범위로 한정했습니다.
+- 실제 내부 프로젝트명·자산 ID·사용자 정보·자격증명은 이 문서에서 일반화했습니다.
 
 ## Tech Stack
 
-- **AI/AX Suite**: Claude Team Plan, MCP (Model Context Protocol), LiteLLM Proxy
-- **Cloud / Security**: GCP BigQuery, Cloud SQL, Google Drive, Google Sheets, IAP (Identity-Aware Proxy), Google OAuth
-- **Database**: PostgreSQL, PgBouncer
-- **Language / Script**: Python, Google Apps Script
+- **AI / AX**: Claude Team Plan, MCP, MCP Apps, Prefab UI
+- **Data / Catalog**: BigQuery, Information Schema, Audit Log, Airflow, Embulk, Looker metadata
+- **Runtime / Security**: FastMCP, FastAPI, GKE, OAuth 2.0, PKCE, Redis TokenStore
+- **Lineage / Query**: bounded BFS, SQL parser, `catalog_*`, BigQuery fixed SELECT
+
+> 실제 업무 경험과 운영 검증을 바탕으로 작성했으며, 내부 식별자·원문 데이터·접근 자격 증명은 포함하지 않았습니다.

@@ -66,21 +66,37 @@ Jenkins 기반 배치 작업을 **Airflow(KubernetesPodOperator)**로 마이그�
 * 배치 파이프라인 표준화
 * 운영 안정성 및 확장성 개선
 
-### 6️⃣ [AI Transformation (AX)](projects/06-ax)
+### 6️⃣ [AI Transformation (AX) · Claude Team Plan & Custom MCP](projects/06-ax)
 
-Claude Team Plan 도입 및 Custom MCP 구축, LiteLLM Proxy를 활용한 사내 LLM 활용 인프라 및 보안 체계 수립
+Claude Team Plan을 사내 공식 AI 도구로 채택하고, 데이터 사일로를 줄이기 위해 Google Sheets·BigQuery·Discovery MCP를 구축했습니다. MCP와 LiteLLM은 모두 AX를 지원하지만 서로 다른 과제이며, LiteLLM은 7번 프로젝트에서 별도로 다룹니다.
 
-* AI 활용 보안 가이드라인 정의 및 에이전트 전용 격리 BigQuery/구글 드라이브 접근 제어 Custom MCP 구현
-* API Key 단위 실시간 사용량 모니터링 및 미사용 Key 관리를 위한 LiteLLM Proxy 도입
-* Google Apps Script에서 IAP를 경유해 LLM API에 안전하게 접근하는 환경 구축
+* Google Sheets MCP: 공식 MCP가 없어 직접 구축하고, 특정 Shared Drive의 스프레드시트만 편집하도록 제한해 GKE에 배포
+* BigQuery MCP: 비개발자 조회를 MCP 전용 프로젝트로 한정하고 Origin 프로젝트의 허용된 View만 연결
+* Discovery MCP: Data Lake·Warehouse·Mart의 원천·예약 쿼리 변환 흐름을 `asset_id`와 Lineage로 탐색하고 MCP Apps로 UI 제공
 
-### 7️⃣ [LiteLLM Cloud SQL 마이그레이션과 DB Connection 안정화](projects/07-litellm-cloudsql-migration)
+### 7️⃣ [LiteLLM on GKE · Cloud SQL 마이그레이션과 DB Connection 안정화](projects/07-litellm-cloudsql-migration)
 
-Kubernetes 내부 PostgreSQL에 저장하던 LiteLLM 운영 데이터를 **Cloud SQL PostgreSQL 17**로 이전하고, 후속 Connection Full 문제를 PgBouncer로 안정화
+프로젝트 단위에 머물던 Gemini API 사용 정보를 팀·기능 단위로 관리하기 위해 LiteLLM을 GKE에 배포했습니다. 이후 Cloud SQL 이전, PgBouncer, KEDA, Cloud Armor·IAP 접근 경계와 멀티 리전 fallback을 운영 과제로 확장했습니다.
 
+* 팀·기능별 Virtual Key와 개발 30일·운영 1년 수명 정책으로 비용과 책임 단위 분리
 * Prisma migration과 데이터 이관을 컷오버 하루 전에 수행해 실제 전환 구간에서 DB 복원 작업 제거
-* 기존 Virtual Key와 실제 LLM 호출 정상 동작 확인 후 In-cluster PostgreSQL 폐기
 * PgBouncer 도입으로 최대 100개인 Cloud SQL 연결을 40개 미만으로 유지
+
+### 8️⃣ [Discovery MCP · 대화형 데이터 카탈로그](projects/08-discovery-mcp)
+
+BigQuery 카탈로그와 Airflow 수집 데이터를 기반으로 자산 검색·상세·Lineage·비용·Staleness·PII 후보 탐색을 제공하는 MCP Apps 프로젝트
+
+* `catalog_*` 계약과 provider-aware `asset_id`로 BigQuery·MySQL·BI·파이프라인 자산을 연결
+* root 중심 bounded BFS와 노드·엣지 상한으로 예측 가능한 Lineage 응답 구성
+* 고정 조회·OAuth·PKCE·감사 로그를 적용하고, 검색·그래프·채팅 컨텍스트를 하나의 Prefab UI 흐름으로 연결
+
+### 9️⃣ [Claude Metric Monitoring · Signal to Seat Decision](projects/09-claude-metric-monitoring)
+
+Claude Code와 claude.ai의 사용 흔적을 OpenTelemetry·ClickHouse·BigQuery Mart로 모아 좌석 배정과 사용 정책을 검토할 수 있는 모니터링 환경 구축
+
+* Claude Code·Chat·Delivery 신호를 익명 집계하고 HOT/COLD/Mart 수명주기로 분리
+* Premium 상향 후보 기준을 단일 중앙값에서 사용 강도·지속성 상위 25% 경계값을 함께 충족하는 방식으로 바꿔 과다한 후보군을 관리자 검토 가능한 규모로 축소
+* 메모리 한도, UTC/KST 기준, PII·원문 로깅 경계를 운영 이슈로 기록하고 검증 가능한 형태로 관리
 
 ---
 
@@ -94,6 +110,7 @@ Kubernetes 내부 PostgreSQL에 저장하던 LiteLLM 운영 데이터를 **Cloud
 | 자산 수집 공수          | 16시간         | 2시간              | 약 85% 절감         |
 | BigQuery 비용       | 온디맨드 단가 인상   | Storage Model 전환 | 약 25% 비용 인상 방어   |
 | Cloud SQL 연결      | 최대 100개 도달    | 40개 미만           | PgBouncer로 안정화    |
+| Premium 상향 후보   | 중앙값 기준 과다 추천 | 강도·지속성 상위 25% 기준 소수 후보 | 좌석 검토 신호 정밀화 |
 
 ---
 
@@ -103,7 +120,9 @@ Kubernetes 내부 PostgreSQL에 저장하던 LiteLLM 운영 데이터를 **Cloud
 * **Streaming / Log**: Kafka, Vector, Fluent-Bit, Logstash, Elasticsearch, Kibana
 * **Data / ETL**: Airflow, Embulk, BigQuery, PostgreSQL, Cloud SQL, PgBouncer
 * **Kubernetes / DevOps**: Helm, ArgoCD, KEDA, GitOps
-* **AI / AX**: Claude Team Plan, MCP (Model Context Protocol), LiteLLM Proxy
+* **AI / AX**: Claude Team Plan, MCP (Model Context Protocol), MCP Apps, LiteLLM Proxy
+* **Observability / Analytics**: OpenTelemetry, ClickHouse, HyperDX, GCS Parquet, BigQuery Mart, Looker
+* **AI Platform Operations**: KEDA, Cloud Armor, IAP, PgBouncer, Multi-region fallback
 * **Language**: Python, SQL, Shell, Google Apps Script
 
 ---
