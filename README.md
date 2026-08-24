@@ -73,7 +73,7 @@ Jenkins 기반 배치 작업을 **Airflow(KubernetesPodOperator)**로 마이그�
 Claude Team Plan을 사내 공식 AI 도구로 채택하고, 데이터 사일로를 줄이기 위해 Google Sheets·BigQuery·Discovery MCP를 구축했습니다. MCP와 LiteLLM은 모두 AX를 지원하지만 서로 다른 과제이며, LiteLLM은 7번 프로젝트에서 별도로 다룹니다.
 
 * Google Sheets MCP: 공식 MCP가 없어 직접 구축하고, 특정 Shared Drive의 스프레드시트만 편집하도록 제한해 GKE에 배포
-* BigQuery MCP: 비개발자 조회를 MCP 전용 프로젝트로 한정하고 Origin 프로젝트의 허용된 View만 연결
+* BigQuery MCP: 비개발자 조회를 MCP 전용 프로젝트로 한정하고 Origin 프로젝트의 허용된 Dataset만 연결
 * Discovery MCP: Data Lake·Warehouse·Mart의 원천·예약 쿼리 변환 흐름을 `asset_id`와 Lineage로 탐색하고 MCP Apps로 UI 제공
 
 ### 7️⃣ [LiteLLM on GKE · Cloud SQL 마이그레이션과 DB Connection 안정화](projects/07-litellm-cloudsql-migration)
