@@ -25,7 +25,7 @@ Claude를 공통 업무 채널로 도입하더라도 에이전트가 원천 DB�
 | MCP | 해결한 업무 | 접근 경계 |
 | --- | --- | --- |
 | Google Sheets | 공유 문서 검색·조회·편집 | 특정 Shared Drive allowlist, 사용자 OAuth, 문서 ID 검증 |
-| BigQuery | 승인된 분석 데이터 조회 | MCP 전용 프로젝트, Origin 프로젝트의 허용된 View, SELECT-only |
+| BigQuery | 승인된 분석 데이터 조회 | MCP 전용 프로젝트, Origin 프로젝트의 허용된 Dataset, SELECT-only |
 | Discovery | 자산·변환 흐름·Lineage 탐색 | 고정 조회, bounded graph, 원천·카탈로그 read-only |
 
 ## Architecture
@@ -65,7 +65,7 @@ Claude에 공식 Google Sheets MCP가 없어 직접 구축했습니다. 사내�
 
 비개발자의 BigQuery 조회가 원천 프로젝트로 직접 향하지 않도록 MCP 전용 신규 프로젝트를 만들었습니다. 사내 비개발자 조회는 해당 프로젝트에서만 진행하도록 정책을 세웠습니다.
 
-- Origin 프로젝트의 테이블을 그대로 공개하지 않고 허용된 View만 MCP 전용 프로젝트에 연결
+- Origin 프로젝트의 테이블을 그대로 공개하지 않고 허용된 Dataset만 MCP 전용 프로젝트에 연결
 - 사용자는 기존과 같은 분석 테이블을 조회하지만, MCP는 분리된 프로젝트에서 실행
 - 프로젝트 allowlist·dataset IAM·SELECT-only 도구 계약으로 임의 변경을 차단
 - 쿼리 실행 전 dry-run과 고정 조회 범위를 적용
