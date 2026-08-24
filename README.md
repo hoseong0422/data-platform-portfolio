@@ -95,7 +95,7 @@ BigQuery 카탈로그와 Airflow 수집 데이터를 기반으로 자산 검색�
 Claude Code와 claude.ai의 사용 흔적을 OpenTelemetry·ClickHouse·BigQuery Mart로 모아 좌석 배정과 사용 정책을 검토할 수 있는 모니터링 환경 구축
 
 * Claude Code·Chat·Delivery 신호를 익명 집계하고 HOT/COLD/Mart 수명주기로 분리
-* Premium 상향 후보 기준을 단일 중앙값에서 P75 사용 강도+활성일수 기준으로 바꿔 후보를 19명에서 2명으로 축소
+* Premium 상향 후보 기준을 단일 중앙값에서 사용 강도·지속성 상위 25% 경계값을 함께 충족하는 방식으로 바꿔 과다한 후보군을 관리자 검토 가능한 규모로 축소
 * 메모리 한도, UTC/KST 기준, PII·원문 로깅 경계를 운영 이슈로 기록하고 검증 가능한 형태로 관리
 
 ---
@@ -110,7 +110,7 @@ Claude Code와 claude.ai의 사용 흔적을 OpenTelemetry·ClickHouse·BigQuery
 | 자산 수집 공수          | 16시간         | 2시간              | 약 85% 절감         |
 | BigQuery 비용       | 온디맨드 단가 인상   | Storage Model 전환 | 약 25% 비용 인상 방어   |
 | Cloud SQL 연결      | 최대 100개 도달    | 40개 미만           | PgBouncer로 안정화    |
-| Premium 상향 후보   | 중앙값 기준 19명    | P75+활성일수 기준 2명 | 좌석 검토 신호 정밀화 |
+| Premium 상향 후보   | 중앙값 기준 과다 추천 | 강도·지속성 상위 25% 기준 소수 후보 | 좌석 검토 신호 정밀화 |
 
 ---
 
