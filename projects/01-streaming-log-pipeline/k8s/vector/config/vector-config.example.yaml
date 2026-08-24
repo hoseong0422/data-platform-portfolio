@@ -1,0 +1,163 @@
+# Sanitized example of a per-workload Vector ConfigMap packaged by the Umbrella chart.
+# Workload names, namespaces, topics, and Kafka endpoints are intentionally generic.
+api:
+  enabled: true
+  address: "0.0.0.0:8686"
+
+data_dir: /var/lib/vector
+
+sources:
+  app_container_logs:
+    type: file
+    include:
+      - /var/log/pods/example-namespace_example-app-api-*/example-app-api/*.log*
+      - /var/log/pods/example-namespace_example-app-worker-*/example-app-worker/*.log*
+      - /var/log/pods/example-namespace_example-app-sidecar-*/example-app-sidecar/*.log*
+    exclude:
+      - /var/log/pods/**/*.gz
+      - /var/log/pods/**/*.tmp
+    read_from: beginning
+    # Tune this retention window per workload; this example keeps 30 days.
+    ignore_older_secs: 2592000
+    max_line_bytes: 2097152
+    max_read_bytes: 262144
+    rotate_wait_secs: 300
+    glob_minimum_cooldown_ms: 1000
+    fingerprint:
+      strategy: checksum
+      bytes: 1024
+      ignored_header_bytes: 0
+    multiline:
+      start_pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\S* (?:stdout|stderr) P '
+      mode: continue_past
+      condition_pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\S* (?:stdout|stderr) P '
+      timeout_ms: 1000
+
+transforms:
+  parse_cri_enrich:
+    type: remap
+    inputs:
+      - app_container_logs
+    source: |
+      msg_str = string(.message) ?? ""
+
+      head, head_err = parse_regex(msg_str, r'^(?P<ts>\S+) (?P<stream>stdout|stderr) (?P<tag>[PF]) ')
+      if head_err == null {
+          .stream = head.stream
+      }
+
+      msg_str = replace(msg_str, r'(?m)^\S+ (?:stdout|stderr) [PF] ', "")
+      .message = replace(msg_str, "\n", "")
+
+      file_str = string(.file) ?? ""
+      parsed, parsed_err = parse_regex(file_str, r'^/var/log/pods/(?P<namespace_name>[^_]+)_(?P<pod_name>[^_]+)_(?P<pod_uid>[^/]+)/(?P<container_name>[^/]+)/')
+      if parsed_err == null {
+          .pod_name       = parsed.pod_name
+          .namespace_name = parsed.namespace_name
+          .container_name = parsed.container_name
+          .pod_uid        = parsed.pod_uid
+          .app_name       = parsed.container_name
+      } else {
+          .pod_name       = "unknown"
+          .namespace_name = "unknown"
+          .container_name = "unknown"
+          .pod_uid        = "unknown"
+          .app_name       = "unknown"
+      }
+      .node_name = get_env_var("VECTOR_SELF_NODE_NAME") ?? "unknown"
+      ._vector_timestamp = now()
+
+  flatten_json:
+    type: remap
+    inputs:
+      - parse_cri_enrich
+    source: |
+      if is_string(.message) {
+          msg = replace(string!(.message), r'\x1b\[[0-9;]*m', "")
+
+          parsed = null
+          level = null
+
+          matched, match_err = parse_regex(msg, r'\[(?P<appname>\w+)\] \[(?P<date>[^\]]*)\] \[(?P<level>(?:debug|fatal|error|warn|info)?)\] #std_logger=(?P<json>\{.*\})')
+          if match_err == null {
+              value, value_err = parse_json(matched.json)
+              if value_err == null && is_object(value) {
+                  parsed = value
+                  level = matched.level
+              }
+          } else {
+              value, value_err = parse_json(msg)
+              if value_err == null && is_object(value) {
+                  parsed = value
+              }
+          }
+
+          if is_object(parsed) {
+              has_inner_message = exists(parsed.message)
+              . = merge(., object!(parsed))
+
+              if is_string(.message) {
+                  inner, inner_err = parse_json(string!(.message))
+                  if inner_err == null && is_object(inner) {
+                      . = merge(., object!(inner))
+                  }
+              }
+
+              if !has_inner_message {
+                  del(.message)
+              }
+
+              if level != null {
+                  .log_level = level
+              }
+          }
+      }
+
+      if !exists(."@timestamp") {
+          ."@timestamp" = now()
+      }
+
+  cleanup:
+    type: remap
+    inputs:
+      - flatten_json
+    source: |
+      del(.file)
+      del(.source_type)
+      del(.host)
+
+  filter_logs:
+    type: filter
+    inputs:
+      - cleanup
+    condition: |
+      topic_str = string(.topic) ?? ""
+      topic_str != "" && topic_str != "default_topic"
+
+sinks:
+  kafka_sink:
+    type: kafka
+    inputs:
+      - filter_logs
+    bootstrap_servers: "kafka-broker-01.internal.example:9092,kafka-broker-02.internal.example:9092,kafka-broker-03.internal.example:9092"
+    topic: "{{ topic }}"
+    compression: lz4
+    batch:
+      max_bytes: 8388608
+      max_events: 65536
+      timeout_secs: 2
+    buffer:
+      type: disk
+      max_size: 536870912
+      when_full: block
+    encoding:
+      codec: json
+    healthcheck_topic: vector_healthcheck
+    acknowledgements:
+      enabled: true
+    librdkafka_options:
+      acks: all
+      enable.idempotence: "true"
+      linger.ms: "5"
+      retries: "2147483647"
+      retry.backoff.ms: "100"

@@ -1,0 +1,11 @@
+# Sanitized example of the parent chart used for services outside the App of Apps boundary.
+apiVersion: v2
+name: vector-log-umbrella
+description: Umbrella chart for a Vector Agent deployment
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: vector
+    version: "0.50.0"
+    repository: "https://helm.vector.dev"

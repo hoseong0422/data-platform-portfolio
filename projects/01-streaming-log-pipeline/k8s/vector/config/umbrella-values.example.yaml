@@ -1,0 +1,66 @@
+# Sanitized example of the parent chart values for a service outside App of Apps.
+# Workload names, ConfigMap names, cluster identifiers, and endpoints are examples.
+
+# Parent chart templates package this file into a ConfigMap.
+vectorConfigPath: configs/vector-config.example.yaml
+vectorConfigMapName: example-app-dev-vector-config
+
+# GKE cannot use the system-critical priority class for this workload.
+priorityClass:
+  create: true
+  name: data-pipeline-critical
+  value: 1000000
+  globalDefault: false
+  description: Vector and other data-pipeline workloads that must avoid log loss
+
+# Values passed to the official Vector subchart.
+vector:
+  namespace: vector
+  role: Agent
+  podPriorityClassName: data-pipeline-critical
+
+  image:
+    repository: docker.io/timberio/vector
+    pullPolicy: IfNotPresent
+
+  rbac:
+    create: true
+
+  serviceAccount:
+    create: true
+
+  terminationGracePeriodSeconds: 60
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  # One workload-specific ConfigMap is selected for each Umbrella release.
+  existingConfigMaps:
+    - example-app-dev-vector-config
+
+  dataDir: /var/lib/vector
+
+  persistence:
+    enabled: true
+    # Agent mode uses node-local storage rather than a PVC.
+    hostPath:
+      enabled: true
+      path: /var/lib/vector
+
+  podSecurityContext:
+    fsGroup: 0
+    runAsUser: 0
+
+  service:
+    enabled: false
+
+  serviceHeadless:
+    enabled: false
+
+  tolerations:
+    - operator: Exists
